@@ -1,0 +1,1 @@
+This App is using basic DnD rolls and Basic DnD weapons, I would love some help or guidance for the visualization.
