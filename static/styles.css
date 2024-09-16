@@ -1,0 +1,19 @@
+@font-face {
+    font-family: 'GoblinHand';
+    src: url('{{ url_for('static', filename='fonts/vtcgoblinhand.regular.ttf') }}') format('truetype');
+}
+
+body {
+    font-family: 'GoblinHand', serif;
+}
+
+form {
+    max-width: 300px;
+    margin: auto;
+}
+
+label, select, input, button {
+    display: block;
+    width: 100%;
+    margin-bottom: 10px;
+}

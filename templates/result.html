@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Roll Result</title>
+</head>
+<body>
+    <h1>Roll Result</h1>
+    <p>Roll: {{ result.roll }}</p>
+    <p>Total: {{ result.total }}</p>
+    <p>Conditions: {{ result.conditions }}</p>
+    {% if result.bardic_level %}
+    <p>Bardic Level: {{ result.bardic_level }}</p>
+    {% endif %}
+    <a href="/">Roll Again</a>
+</body>
+</html>

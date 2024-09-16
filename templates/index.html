@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D20 Roll</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        @font-face {
+            font-family: 'Goblin Hand';
+            src: url('{{ url_for('static', filename='fonts/vtcgoblinhand.regular.ttf') }}') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Goblin Hand', Arial, sans-serif;
+            background-color: #D8BFD8; /* Light purple background */
+            color: black; /* Ensure text is visible */
+        }
+
+        .blue-background {
+            background-color: blue;
+            color: white;
+        }
+
+        .green-background {
+            background-color: green;
+            color: white;
+        }
+
+        .red-background {
+            background-color: red;
+            color: white;
+        }
+
+        .yellow-background {
+            background-color: yellow;
+            color: black;
+        }
+
+        #hit_miss_buttons {
+            display: inline-block;
+            margin-top: 10px;
+        }
+
+        #hit_miss_buttons button {
+            display: inline-block;
+            padding: 5px 10px;
+            margin: 0;
+            font-size: 14px;
+            text-align: center;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        #hit_miss_buttons button:hover {
+            opacity: 0.8;
+        }
+
+        #weapon_container {
+            display: inline-block;
+            margin-top: 10px;
+        }
+
+        #weapon_container select,
+        #weapon_container button {
+            display: inline-block;
+            padding: 5px 10px;
+            margin: 0;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        #weapon_container button {
+            margin-left: 5px;
+            cursor: pointer;
+        }
+
+        #weapon_container button:hover {
+            opacity: 0.8;
+        }
+
+        #damage_modifiers_container {
+            display: inline-block;
+            margin-top: 10px;
+            margin-left: 20px;
+        }
+
+        #damage_modifiers_container input {
+            display: block;
+            padding: 5px;
+            margin-top: 10px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 30px;
+        }
+
+        #threejs-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1; /* Ensure it stays in the background */
+        }
+
+        /* Additional styling to ensure text visibility */
+        h1, label, select, input, button {
+            z-index: 1;
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div id="threejs-background"></div>
+
+    <h1>D20 Roll</h1>
+    <form id="roll_form" class="blue-background" onsubmit="handleRollSubmit(event)">
+        <label for="roll_type">Roll Type:</label>
+        <select id="roll_type" name="roll_type">
+            <option value="Ability Check">Ability Check</option>
+            <option value="Skill Check">Skill Check</option>
+            <option value="Saving Throw">Saving Throw</option>
+            <option value="Attack Roll">Attack Roll</option>
+        </select>
+        <br>
+        <label for="modifiers">Modifiers:</label>
+        <input type="number" id="modifiers" name="modifiers" value="0">
+        <br>
+        <label for="conditions">Conditions:</label>
+        <select id="conditions" name="conditions" multiple size="6" onchange="handleConditionsChange()">
+            <option value="A">Advantage</option>
+            <option value="D">Disadvantage</option>
+            <option value="I">Bardic Inspiration</option>
+            <option value="G">Guidance</option>
+            <option value="B+">Bless</option>
+            <option value="B-">Bane</option>
+        </select>
+        <br>
+        <div id="bardic_level_container" class="yellow-background" style="display: none;">
+            <label for="bardic_level">Bardic Level:</label>
+            <select id="bardic_level" name="bardic_level">
+                <option value="0">0-4</option>
+                <option value="5">5-9</option>
+                <option value="10">10-14</option>
+                <option value="15">15-20</option>
+            </select>
+        </div>
+        <button type="submit" class="blue-background">Roll</button>
+    </form>
+    <div id="result"></div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@three-dice/dice-roller@1.0.0/dist/dice-roller.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/effects/OutlineEffect.js"></script>
+    <script>
+        // Add your Three.js code to create the 3D D20s here
+        const scene = new THREE.Scene();
+        
+        // Set up camera
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 5;
+
+        // Set up renderer
+        const renderer = new THREE.WebGLRenderer({ alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x000000, 0); // Transparent background
+        document.getElementById('threejs-background').appendChild(renderer.domElement);
+
+        // Outline effect
+        const outlineEffect = new THREE.OutlineEffect(renderer, {
+            defaultColor: [0, 0, 0],
+            defaultThickness: 0.01
+        });
+
+        // Add a light source
+        const light = new THREE.PointLight(0xffffff, 1, 100);
+        light.position.set(10, 10, 10);
+        scene.add(light);
+
+        // Dice material and geometry
+        const diceMaterial = new THREE.MeshPhongMaterial({ color: 0xffa500 }); // Orange color
+        const diceGeometry = new THREE.DodecahedronGeometry(1);
+
+        // Create and add dice to the scene
+        for (let i = 0; i < 20; i++) {
+            const diceMesh = new THREE.Mesh(diceGeometry, diceMaterial);
+            diceMesh.position.set(
+                (Math.random() - 0.5) * 10, // Adjusted for better visibility
+                (Math.random() - 0.5) * 10,
+                (Math.random() - 0.5) * 10
+            );
+            scene.add(diceMesh);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            scene.traverse((object) => {
+                if (object.isMesh) {
+                    object.rotation.x += 0.01;
+                    object.rotation.y += 0.01;
+                }
+            });
+            outlineEffect.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        function handleConditionsChange() {
+            const conditionsSelect = document.getElementById('conditions');
+            const bardicLevelContainer = document.getElementById('bardic_level_container');
+            const selectedConditions = Array.from(conditionsSelect.selectedOptions).map(option => option.value);
+
+            if (selectedConditions.includes('I')) {
+                bardicLevelContainer.style.display = 'block';
+            } else {
+                bardicLevelContainer.style.display = 'none';
+            }
+        }
+
+        function handleRollSubmit(event) {
+            event.preventDefault();
+            const form = document.getElementById('roll_form');
+            const data = new FormData(form);
+            fetch('/roll', {
+                method: 'POST',
+                body: data
+            })
+            .then(response => response.json())
+            .then(result => {
+                let resultHtml = `
+                    <p>Roll: ${result.Roll}</p>`;
+                
+                if (result.hasOwnProperty('Advantage Roll')) {
+                    resultHtml += `
+                    <p>Advantage Roll: ${result['Advantage Roll']}</p>
+                    <p>Choosing higher roll: ${result['Choosing higher roll']}</p>`;
+                } else if (result.hasOwnProperty('Disadvantage Roll')) {
+                    resultHtml += `
+                    <p>Disadvantage Roll: ${result['Disadvantage Roll']}</p>
+                    <p>Choosing lower roll: ${result['Choosing lower roll']}</p>`;
+                }
+
+                if (result.hasOwnProperty('Nat1_or_20')) {
+                    resultHtml += `<p>${result.Nat1_or_20}</p>`;
+                }
+
+                resultHtml += `<p>Modifiers: ${result.Modifiers}</p>`;
+
+                if (result.hasOwnProperty('Guidance')) {
+                    resultHtml += `<p>Guidance: ${result.Guidance}</p>`;
+                }
+                if (result.hasOwnProperty('Bless')) {
+                    resultHtml += `<p>Bless: ${result.Bless}</p>`;
+                }
+                if (result.hasOwnProperty('Bane')) {
+                    resultHtml += `<p>Bane: ${result.Bane}</p>`;
+                }
+                if (result.hasOwnProperty('Bardic Inspiration')) {
+                    resultHtml += `<p>Bardic Inspiration: ${result['Bardic Inspiration']}</p>`;
+                }
+
+                resultHtml += `<p>Total: ${result.Total}</p>`;
+
+                if (result.roll_type === 'Attack Roll') {
+                    resultHtml += `
+                    <div id="hit_miss_buttons">
+                        <button class="green-background" onclick="handleHitMiss('hit')">Hit</button>
+                        <button class="red-background" onclick="handleHitMiss('miss')">Miss</button>
+                    </div>`;
+                }
+
+                document.getElementById('result').innerHTML = resultHtml;
+            });
+        }
+
+        function handleHitMiss(outcome) {
+            if (outcome === 'hit') {
+                document.getElementById('result').innerHTML += `
+                    <div id="weapon_container" class="blue-background">
+                        <label for="weapon">Select Weapon:</label>
+                        <select id="weapon" name="weapon">
+                            <optgroup label="d4 Weapons">
+                                <option value="Club" data-dice="1d4">Club</option>
+                                <option value="Dagger" data-dice="1d4">Dagger</option>
+                                <option value="Light Hammer" data-dice="1d4">Light Hammer</option>
+                                <option value="Sickle" data-dice="1d4">Sickle</option>
+                                <option value="Sling" data-dice="1d4">Sling</option>
+                                <option value="Dart" data-dice="1d4">Dart</option>
+                                <option value="Whip" data-dice="1d4">Whip</option>
+                            </optgroup>
+                            <optgroup label="d6 Weapons">
+                                <option value="Shortsword" data-dice="1d6">Shortsword</option>
+                                <option value="Handaxe" data-dice="1d6">Handaxe</option>
+                                <option value="Javelin" data-dice="1d6">Javelin</option>
+                                <option value="Mace" data-dice="1d6">Mace</option>
+                                <option value="Quarterstaff" data-dice="1d6">Quarterstaff</option>
+                                <option value="Spear" data-dice="1d6">Spear</option>
+                                <option value="Shortbow" data-dice="1d6">Shortbow</option>
+                                <option value="Hand Crossbow" data-dice="1d6">Hand Crossbow</option>
+                                <option value="Trident" data-dice="1d6">Trident</option>
+                                <option value="Scimitar" data-dice="1d6">Scimitar</option>
+                            </optgroup>
+                            <optgroup label="d8 Weapons">
+                                <option value="Light Crossbow" data-dice="1d8">Light Crossbow</option>
+                                <option value="Battleaxe" data-dice="1d8">Battleaxe</option>
+                                <option value="Flail" data-dice="1d8">Flail</option>
+                                <option value="Longsword" data-dice="1d8">Longsword</option>
+                                <option value="Morningstar" data-dice="1d8">Morningstar</option>
+                                <option value="War Pick" data-dice="1d8">War Pick</option>
+                                <option value="Warhammer" data-dice="1d8">Warhammer</option>
+                                <option value="Greatclub" data-dice="1d8">Greatclub</option>
+                                <option value="Longbow" data-dice="1d8">Longbow</option>
+                                <option value="Rapier" data-dice="1d8">Rapier</option>
+                            </optgroup>
+                            <optgroup label="d10 Weapons">
+                                <option value="Pike" data-dice="1d10">Pike</option>
+                                <option value="Glaive" data-dice="1d10">Glaive</option>
+                                <option value="Heavy Crossbow" data-dice="1d10">Heavy Crossbow</option>
+                            </optgroup>
+                            <optgroup label="d12 Weapons">
+                                <option value="Greatsword" data-dice="1d12">Greatsword</option>
+                                <option value="Greataxe" data-dice="1d12">Greataxe</option>
+                                <option value="Lance" data-dice="1d12">Lance</option>
+                                <option value="Maul" data-dice="1d12">Maul</option>
+                            </optgroup>
+                        </select>
+                        <button onclick="rollWeaponDamage()">Roll Damage</button>
+                    </div>
+                    <div id="damage_modifiers_container">
+                        <label for="damage_modifiers">Damage Modifiers:</label>
+                        <input type="number" id="damage_modifiers" name="damage_modifiers" value="0">
+                    </div>`;
+            } else {
+                document.getElementById('result').innerHTML += '<p>Miss!</p>';
+            }
+        }
+
+        function rollWeaponDamage() {
+            const weaponSelect = document.getElementById('weapon');
+            const selectedWeapon = weaponSelect.options[weaponSelect.selectedIndex];
+            const damageDice = selectedWeapon.getAttribute('data-dice');
+            const damageModifiers = document.getElementById('damage_modifiers').value || 0;
+            
+            fetch('/roll_damage', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    dice: damageDice,
+                    modifiers: parseInt(damageModifiers)
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                document.getElementById('result').innerHTML += `
+                    <p>Weapon: ${selectedWeapon.text}</p>
+                    <p>Damage Roll: ${result.Roll}</p>
+                    <p>Total Damage: ${result.Total}</p>`;
+            });
+        }
+    </script>
+</body>
+</html>
