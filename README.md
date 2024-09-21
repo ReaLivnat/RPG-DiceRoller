@@ -44,3 +44,6 @@ This is a Python-based dice rolling application designed for tabletop RPG games,
 2. Run the script in a Python environment:
    ```bash
    python dice_roller.py
+
+
+This App uses flask version 24.2
